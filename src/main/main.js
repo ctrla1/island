@@ -6,12 +6,21 @@ const { ClipboardHistory } = require('./clipboard');
 const { SystemMonitor } = require('./system');
 const { startNotifyServer } = require('./notify-server');
 const { trayIcon } = require('./tray');
-const { fullscreenOnPrimary, mouseButtonDown, appWindowAt } = require('./win32');
+const { SnippetStore } = require('./snippets');
+const {
+  fullscreenOnPrimary,
+  mouseButtonDown,
+  appWindowAt,
+  modifiersDown,
+  sendPaste,
+  foregroundWindow,
+  focusWindow,
+} = require('./win32');
 
 // The window is a fixed transparent canvas; the island morphs inside it and
-// everything outside the island is click-through.
+// everything outside the island is click-through. Tall enough for the snippet editor.
 const WIN_W = 840;
-const WIN_H = 520;
+const WIN_H = 580;
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -22,7 +31,14 @@ app.setAppUserModelId('dev.island.desktop');
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json');
-const DEFAULT_SETTINGS = { demoMedia: false, copyIndicator: true, volumeHud: true, hideInFullscreen: true, passThrough: true };
+const DEFAULT_SETTINGS = {
+  demoMedia: false,
+  copyIndicator: true,
+  volumeHud: true,
+  hideInFullscreen: true,
+  passThrough: true,
+  snippetPaste: true,
+};
 
 function loadSettings() {
   try {
@@ -47,6 +63,7 @@ const STRINGS = {
     volumeHud: 'Индикатор громкости',
     hideInFullscreen: 'Скрывать в играх и полноэкранных приложениях',
     passThrough: 'Пропускать клики сквозь капсулу',
+    snippetPaste: 'Вставлять шаблон сразу при клике',
     login: 'Запускать при входе в Windows',
     reload: 'Перезапустить интерфейс',
     quit: 'Выйти',
@@ -61,6 +78,7 @@ const STRINGS = {
     volumeHud: 'Volume indicator',
     hideInFullscreen: 'Hide over games and full-screen apps',
     passThrough: 'Let clicks pass through the pill',
+    snippetPaste: 'Paste snippets on click',
     login: 'Launch at Windows sign-in',
     reload: 'Reload interface',
     quit: 'Quit',
@@ -76,6 +94,11 @@ let fullscreen = false;
 let appBelow = true;
 let mediaState = { type: 'media', active: false };
 let volumeState = null;
+let islandExpanded = false;
+let editing = false;
+let editingReturnTo = null;
+let snippets = null;
+let snippetAccels = [];
 const bridge = new SystemBridge();
 const clips = new ClipboardHistory();
 const system = new SystemMonitor();
@@ -142,7 +165,14 @@ function createWindow() {
   // A fresh renderer starts collapsed: make sure we are not left blocking clicks.
   win.webContents.on('did-finish-load', () => {
     win.setIgnoreMouseEvents(true, { forward: true });
-    if (globalShortcut.isRegistered('Escape')) globalShortcut.unregister('Escape');
+    islandExpanded = false;
+    if (editing) setEditing(false);
+    syncEscape();
+  });
+  // Clicking away mid-edit: the editor folds up (keeping a draft) instead of
+  // holding the island open over the user's work.
+  win.on('blur', () => {
+    if (editing) send('editor:blur');
   });
   win.on('closed', () => { win = null; });
 }
@@ -176,6 +206,7 @@ function buildTrayMenu() {
     { label: t('copyIndicator'), type: 'checkbox', checked: settings.copyIndicator, click: toggle('copyIndicator') },
     { label: t('volumeHud'), type: 'checkbox', checked: settings.volumeHud, click: toggle('volumeHud') },
     { label: t('passThrough'), type: 'checkbox', checked: settings.passThrough, click: toggle('passThrough') },
+    { label: t('snippetPaste'), type: 'checkbox', checked: settings.snippetPaste, click: toggle('snippetPaste') },
     { label: t('hideInFullscreen'), type: 'checkbox', checked: settings.hideInFullscreen, click: toggle('hideInFullscreen') },
     {
       label: t('login'),
@@ -198,10 +229,6 @@ function createTray() {
   buildTrayMenu();
 }
 
-// Forwarded mouse events stop once the cursor leaves the window entirely,
-// so poll the cursor to tell the renderer about that edge. While the cursor is
-// inside, also watch the mouse buttons: clicks that pass through the pill to
-// the app underneath never reach the renderer, but they tell it "not for me".
 // Is an app window (browser, editor…) sitting under the pill right now? Only
 // then does the pill need to get out of the way; over a bare desktop it opens
 // on hover straight away. Sample its centre and both ends (top 7 + half of 34 px).
@@ -222,6 +249,10 @@ function updateAppBelow() {
   }
 }
 
+// Forwarded mouse events stop once the cursor leaves the window entirely,
+// so poll the cursor to tell the renderer about that edge. While the cursor is
+// inside, also watch the mouse buttons: clicks that pass through the pill to
+// the app underneath never reach the renderer, but they tell it "not for me".
 function watchPointer() {
   let buttonDown = false;
   let tick = 0;
@@ -268,6 +299,113 @@ function watchFullscreen() {
   }, 400);
 }
 
+// ── Shortcuts ───────────────────────────────────────────────────────────────
+// Our own combos; a snippet cannot take these.
+const APP_SHORTCUTS = { 'Ctrl+Alt+N': () => send('demo', 'notification'), 'Ctrl+Alt+I': () => setPinned(!pinned) };
+
+function registerAppShortcuts() {
+  for (const [accel, fn] of Object.entries(APP_SHORTCUTS)) {
+    if (!globalShortcut.isRegistered(accel)) globalShortcut.register(accel, fn);
+  }
+}
+
+function registerSnippetShortcuts() {
+  for (const accel of snippetAccels) globalShortcut.unregister(accel);
+  snippetAccels = [];
+  if (editing || !snippets) return;
+  for (const s of snippets.items) {
+    if (!s.hotkey) continue;
+    const id = s.id;
+    try {
+      if (globalShortcut.register(s.hotkey, () => pasteSnippet(id, 'hotkey'))) snippetAccels.push(s.hotkey);
+    } catch (err) {
+      console.log(`snippet hotkey ${s.hotkey}: ${err.message}`);
+    }
+  }
+}
+
+// Escape folds the island only while it is open — and never while the user is
+// typing in the snippet editor, where Escape belongs to the editor.
+function syncEscape() {
+  const want = islandExpanded && !editing;
+  if (want && !globalShortcut.isRegistered('Escape')) globalShortcut.register('Escape', () => send('escape'));
+  else if (!want && globalShortcut.isRegistered('Escape')) globalShortcut.unregister('Escape');
+}
+
+// ── Snippets ────────────────────────────────────────────────────────────────
+function saveSnippet(data) {
+  const hotkey = typeof data.hotkey === 'string' && data.hotkey ? data.hotkey : null;
+  if (hotkey) {
+    if (APP_SHORTCUTS[hotkey]) return { ok: false, error: 'reserved' };
+    const clash = snippets.items.find((s) => s.hotkey === hotkey && s.id !== data.id);
+    if (clash) return { ok: false, error: 'taken-snippet', title: clash.title };
+    const current = data.id && snippets.get(data.id);
+    if (!current || current.hotkey !== hotkey) {
+      // Probe whether another program already owns this combo system-wide.
+      let free = false;
+      try {
+        free = globalShortcut.register(hotkey, () => {});
+      } catch {
+        return { ok: false, error: 'invalid' };
+      }
+      if (!free) return { ok: false, error: 'taken-system' };
+      globalShortcut.unregister(hotkey);
+    }
+  }
+  try {
+    const s = snippets.upsert({ ...data, hotkey });
+    registerSnippetShortcuts();
+    return { ok: true, id: s.id };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Puts the snippet on the clipboard and, unless the user prefers plain copying,
+// presses Ctrl+V in the app they are working in. After a hotkey we wait for the
+// user to let go of Ctrl/Alt first — otherwise our Ctrl+V would arrive as Ctrl+Alt+V.
+async function pasteSnippet(id, via) {
+  const s = snippets && snippets.get(id);
+  if (!s) return { ok: false };
+  await clips.writeQuiet(s.text);
+  snippets.use(id);
+  const paste = via === 'hotkey' || settings.snippetPaste;
+  if (paste) {
+    const deadline = Date.now() + 1500;
+    while (modifiersDown() && Date.now() < deadline) await sleep(15);
+    if (modifiersDown()) return { ok: true, pasted: false };
+    sendPaste();
+  }
+  if (via === 'hotkey') send('snippet:used', { id, title: s.title, pasted: paste });
+  return { ok: true, pasted: paste };
+}
+
+// The island never takes focus — except while the snippet editor is open,
+// because text fields need a keyboard. Remember who had focus and hand it back.
+function setEditing(on) {
+  if (!win || on === editing) return;
+  editing = on;
+  if (on) {
+    editingReturnTo = foregroundWindow();
+    globalShortcut.unregisterAll();
+    snippetAccels = [];
+    win.setFocusable(true);
+    win.setSkipTaskbar(true);
+    win.focus();
+    return;
+  }
+  const stillOurs = win.isFocused();
+  win.setFocusable(false);
+  win.setSkipTaskbar(true);
+  if (stillOurs) focusWindow(editingReturnTo);
+  editingReturnTo = null;
+  registerAppShortcuts();
+  registerSnippetShortcuts();
+  syncEscape();
+}
+
 function wireIpc() {
   ipcMain.handle('init', () => ({
     locale: locale(),
@@ -277,6 +415,7 @@ function wireIpc() {
     appBelow,
     forceDemo,
     clips: clips.list(),
+    snippets: snippets ? snippets.list() : [],
     system: system.state,
     media: mediaState,
     volume: volumeState,
@@ -287,12 +426,25 @@ function wireIpc() {
   });
 
   ipcMain.on('expanded', (_e, expanded) => {
-    if (expanded) {
-      if (!globalShortcut.isRegistered('Escape')) globalShortcut.register('Escape', () => send('escape'));
-    } else if (globalShortcut.isRegistered('Escape')) {
-      globalShortcut.unregister('Escape');
-    }
+    islandExpanded = expanded;
+    syncEscape();
   });
+
+  ipcMain.handle('snippet:save', (_e, data) => saveSnippet(data || {}));
+  ipcMain.handle('snippet:delete', (_e, id) => {
+    const ok = snippets.remove(id);
+    registerSnippetShortcuts();
+    return ok;
+  });
+  ipcMain.handle('snippet:use', (_e, id) => pasteSnippet(id, 'click'));
+  ipcMain.handle('snippet:fromClip', (_e, clipId) => {
+    const text = clips.textOf(clipId);
+    if (!text) return { ok: false };
+    const existing = snippets.findByText(text);
+    if (existing) return { ok: true, id: existing.id };
+    return saveSnippet({ text });
+  });
+  ipcMain.on('editing', (_e, on) => setEditing(!!on));
 
   ipcMain.on('unpin', () => { if (pinned) setPinned(false); });
 
@@ -335,6 +487,11 @@ app.whenReady().then(() => {
     app.setLoginItemSettings({ openAtLogin: true, path: process.execPath, args: loginArgs() });
     saveSettings();
   }
+  snippets = new SnippetStore(app.getPath('userData'));
+  snippets.on('log', (line) => console.log(line));
+  snippets.load();
+  snippets.on('change', (reason) => send('snippets', { list: snippets.list(), reason }));
+
   wireIpc();
   wireSources();
   createWindow();
@@ -347,8 +504,8 @@ app.whenReady().then(() => {
   watchFullscreen();
   startNotifyServer((payload) => send('notify', payload), (line) => console.log(line));
 
-  globalShortcut.register('CommandOrControl+Alt+N', () => send('demo', 'notification'));
-  globalShortcut.register('CommandOrControl+Alt+I', () => setPinned(!pinned));
+  registerAppShortcuts();
+  registerSnippetShortcuts();
 
   screen.on('display-metrics-changed', placeWindow);
   screen.on('display-added', placeWindow);

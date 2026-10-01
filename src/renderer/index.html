@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; form-action 'none'">
   <title>Island</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -104,15 +104,49 @@
 
       <div class="x-rule-h"></div>
 
-      <div class="clip" id="clip">
-        <div class="clip-head">
-          <div class="clip-title"><span id="clip-title"></span><span class="clip-count" id="clip-count"></span></div>
-          <div class="clip-actions">
+      <div class="shelf" id="shelf" data-tab="recent">
+        <div class="shelf-head">
+          <div class="seg" id="shelf-seg">
+            <span class="seg-thumb"></span>
+            <button class="seg-btn" data-tab="recent"><span id="clip-title"></span><span class="seg-count" id="clip-count"></span></button>
+            <button class="seg-btn" data-tab="snippets"><span id="snip-title"></span><span class="seg-count" id="snip-count"></span></button>
+          </div>
+          <div class="shelf-actions" data-for="recent">
             <button class="chip" id="clip-more"><span></span><i data-icon="chevron"></i></button>
             <button class="chip" id="clip-clear"></button>
           </div>
+          <div class="shelf-actions" data-for="snippets">
+            <button class="chip" id="snip-more"><span></span><i data-icon="chevron"></i></button>
+            <button class="chip chip-add" id="snip-add"><i data-icon="plus"></i><span></span></button>
+          </div>
         </div>
-        <div class="clip-grid" id="clip-grid"></div>
+        <div class="shelf-pane" data-pane="recent"><div class="clip-grid" id="clip-grid"></div></div>
+        <div class="shelf-pane" data-pane="snippets"><div class="clip-grid snip-grid" id="snip-grid"></div></div>
+
+        <form class="snip-editor" id="snip-editor" autocomplete="off" hidden>
+          <div class="ed-head">
+            <span class="ed-heading" id="ed-heading"></span>
+            <div class="ed-colors" id="ed-colors"></div>
+          </div>
+          <div class="ed-fields">
+            <label class="ed-label" for="ed-name" id="ed-name-label"></label>
+            <input class="ed-input" id="ed-name" maxlength="60" spellcheck="false">
+            <label class="ed-label" for="ed-text" id="ed-text-label"></label>
+            <textarea class="ed-input ed-text" id="ed-text" rows="3" maxlength="10000" spellcheck="false"></textarea>
+            <span class="ed-label" id="ed-key-label"></span>
+            <div class="ed-key-row">
+              <button type="button" class="ed-key" id="ed-key"></button>
+              <button type="button" class="ed-key-clear" id="ed-key-clear" data-icon="close"></button>
+              <span class="ed-error" id="ed-error"></span>
+            </div>
+          </div>
+          <div class="ed-actions">
+            <button type="button" class="ed-btn ed-danger" id="ed-delete"></button>
+            <span class="ed-spacer"></span>
+            <button type="button" class="ed-btn" id="ed-cancel"></button>
+            <button type="submit" class="ed-btn ed-primary" id="ed-save"></button>
+          </div>
+        </form>
       </div>
     </section>
   </div>

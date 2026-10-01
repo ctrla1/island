@@ -177,7 +177,7 @@ export class Island {
       return;
     }
     let mode;
-    if (this.pinned || this.wantExpand) {
+    if (this.pinned || this.wantExpand || this.locked) {
       mode = 'expanded';
     } else {
       if (!this.notification && this.queue.length) this.startNotification(this.queue.shift());
@@ -203,6 +203,13 @@ export class Island {
     this.layers.compact.classList.toggle('is-media', hasMedia);
     this.updateHero();
     if (changed && this.mode === 'compact') this.retarget('settle');
+  }
+
+  // Held open while the user types in the snippet editor, wherever the cursor wanders.
+  setLocked(locked) {
+    this.locked = locked;
+    if (!locked) this.wantExpand = this.over;
+    this.evaluate();
   }
 
   setPinned(pinned) {

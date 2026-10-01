@@ -29,13 +29,14 @@ export class ClipboardPanel {
     this.items = [];
     this.cards = new Map();
     this.showAll = false;
+    this.starred = new Map(); // snippet text → snippet id
 
     const $ = (id) => document.getElementById(id);
     this.grid = $('clip-grid');
     this.count = $('clip-count');
     this.more = $('clip-more');
     this.clear = $('clip-clear');
-    $('clip-title').textContent = t('clipboard');
+    $('clip-title').textContent = t('recent');
     this.clear.textContent = t('clear');
 
     this.more.addEventListener('click', () => {
@@ -64,8 +65,27 @@ export class ClipboardPanel {
     this.render();
   }
 
+  // Which recent entries are already saved as snippets (their star is lit).
+  setSnippets(list) {
+    this.starred = new Map(list.map((s) => [s.text, s.id]));
+    for (const item of this.items) {
+      const el = this.cards.get(item.id);
+      if (el) this.paintStar(el, item);
+    }
+  }
+
+  paintStar(el, item) {
+    const star = el.querySelector('.card-star');
+    if (!star) return;
+    const on = this.starred.has(item.text);
+    if (el.classList.contains('is-starred') === on && star.firstChild) return;
+    el.classList.toggle('is-starred', on);
+    star.innerHTML = icon(on ? 'starFill' : 'star');
+  }
+
   render() {
-    const animate = this.island.mode === 'expanded';
+    // Hidden behind the Snippets tab: lay out without animating.
+    const animate = this.island.mode === 'expanded' && this.grid.offsetParent !== null;
     const first = new Map();
     if (animate) for (const [id, el] of this.cards) first.set(id, el.getBoundingClientRect());
 
@@ -90,6 +110,7 @@ export class ClipboardPanel {
         fresh.push(el);
       }
       el.querySelector('.card-time').textContent = ago(item.ts);
+      this.paintStar(el, item);
       this.grid.appendChild(el);
     }
 
@@ -170,6 +191,22 @@ export class ClipboardPanel {
       body.textContent = `${item.width} × ${item.height}`;
     } else {
       body.textContent = item.text.replace(/\s+/g, ' ').trim();
+    }
+
+    // ★ keeps this entry as a snippet; tapping a lit star removes it again.
+    if (item.kind !== 'image') {
+      const star = document.createElement('span');
+      star.className = 'card-star';
+      star.setAttribute('role', 'button');
+      el.querySelector('.card-top').appendChild(star);
+      star.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = this.starred.get(item.text);
+        if (id) await this.api.deleteSnippet(id);
+        else await this.api.snippetFromClip(item.id);
+        star.animate([{ transform: 'scale(0.55)' }, { transform: 'scale(1)' }], { duration: 520, easing: this.springEase });
+      });
     }
 
     el.addEventListener('click', async (e) => {

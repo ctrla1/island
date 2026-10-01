@@ -2,6 +2,7 @@ import { Island } from './island.js';
 import { NowPlaying } from './nowplaying.js';
 import { QuickInfo } from './quickinfo.js';
 import { ClipboardPanel } from './clipboard.js';
+import { Shelf, SnippetsPanel } from './snippets.js';
 import { createNotificationRenderer } from './notifications.js';
 import { springEasing } from './spring.js';
 import { hydrateIcons, icon } from './icons.js';
@@ -46,12 +47,22 @@ async function start() {
   island.setAppBelow(init.appBelow !== false);
 
   const quick = new QuickInfo({ island, forceDemo: init.forceDemo });
+  const shelf = new Shelf({ island });
   const clips = new ClipboardPanel({ api, island, springEase: SPRING_SOFT });
+  const snippets = new SnippetsPanel({
+    api,
+    island,
+    shelf,
+    springEase: SPRING_SOFT,
+    getSettings: () => settings,
+    onList: (list) => clips.setSnippets(list),
+  });
   const player = new NowPlaying({ island, api, settings, forceDemo: init.forceDemo });
 
   if (init.system) quick.update(init.system);
   const realClips = init.clips || [];
   clips.setItems(init.forceDemo && !realClips.length ? demoClips() : realClips);
+  snippets.setList(init.snippets || [], 'init');
   if (init.media && init.media.active) player.setSystem(init.media);
   else player.refresh();
   if (init.volume) player.onSystemVolume(init.volume);
@@ -69,6 +80,11 @@ async function start() {
       render: () => clips.renderCopiedActivity(item),
     });
   });
+  api.on('snippets', ({ list, reason }) => snippets.setList(list, reason));
+  api.on('snippet:used', (used) => {
+    island.flash({ key: 'snippet', width: 300, duration: 1700, render: () => snippets.renderUsedActivity(used) });
+  });
+  api.on('editor:blur', () => snippets.closeEditor({ keepDraft: true }));
   api.on('notify', (n) => island.notify(n));
   api.on('charging', (power) => showCharging(power));
   api.on('escape', () => island.escape());
@@ -120,7 +136,7 @@ async function start() {
   island.boot();
 
   // Handy for poking at states from DevTools.
-  window.__island = { island, player, clips, quick, showCharging };
+  window.__island = { island, player, clips, quick, showCharging, snippets, shelf };
 }
 
 start();

@@ -46,7 +46,7 @@ class ClipboardHistory extends EventEmitter {
   }
 
   poll() {
-    if (this.busy) return;
+    if (this.busy || this.muted) return;
     const seq = clipboardSequence();
     if (seq === this.seq) return;
     this.seq = seq;
@@ -126,6 +126,23 @@ class ClipboardHistory extends EventEmitter {
     }
     this.selfSeq = clipboardSequence();
     return true;
+  }
+
+  // Put text on the clipboard without it showing up in history (used for
+  // snippets, which already live in their own list).
+  async writeQuiet(text) {
+    this.muted = true;
+    try {
+      await clipboard.writeText(text);
+    } finally {
+      this.seq = clipboardSequence();
+      this.muted = false;
+    }
+  }
+
+  textOf(id) {
+    const item = this.items.find((it) => it.id === id);
+    return item && item.kind !== 'image' ? item.text : null;
   }
 
   clear() {

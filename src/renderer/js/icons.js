@@ -43,6 +43,12 @@ export const icons = {
   cpu: stroke('<rect x="6" y="6" width="12" height="12" rx="2.6"/><path d="M9.5 3v3M14.5 3v3M9.5 18v3M14.5 18v3M3 9.5h3M3 14.5h3M18 9.5h3M18 14.5h3"/>'),
   memory: stroke('<rect x="3" y="7" width="18" height="10" rx="2.2"/><path d="M7 7v10M11 7v10M15 7v10M3 17v2M21 17v2"/>'),
   wave: stroke('<path d="M4 12h1.5M8 8v8M11.5 5v14M15 9v6M18.5 11v2"/>'),
+  star: stroke('<path d="m12 3.6 2.47 5.02 5.53.8-4 3.9.94 5.5L12 16.22l-4.94 2.6.94-5.5-4-3.9 5.53-.8z"/>', 'stroke-width="1.8"'),
+  starFill: fill('<path d="m12 3.6 2.47 5.02 5.53.8-4 3.9.94 5.5L12 16.22l-4.94 2.6.94-5.5-4-3.9 5.53-.8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'),
+  plus: stroke('<path d="M12 5v14M5 12h14"/>', 'stroke-width="2.1"'),
+  pencil: stroke('<path d="M15.2 5.3a2.1 2.1 0 0 1 3 3L8.6 17.9l-4 1 1-4z"/><path d="m13.6 6.9 3 3"/>'),
+  close: stroke('<path d="m7 7 10 10M17 7 7 17"/>', 'stroke-width="2"'),
+  snippet: stroke('<rect x="4.5" y="3.5" width="15" height="17" rx="3"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4"/>'),
 
   // Notification app glyphs (white on tinted squircles)
   messages: fill('<path d="M12 4.2c-4.86 0-8.8 3.25-8.8 7.26 0 2.3 1.3 4.35 3.34 5.68-.13 1.06-.62 2.05-1.37 2.83 1.6.06 3.15-.44 4.38-1.43.78.17 1.6.26 2.45.26 4.86 0 8.8-3.25 8.8-7.34S16.86 4.2 12 4.2z"/>'),

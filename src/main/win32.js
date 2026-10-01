@@ -32,6 +32,8 @@ const GetTopWindow = user32.func('HANDLE __stdcall GetTopWindow(HANDLE hwnd)');
 const GetWindow = user32.func('HANDLE __stdcall GetWindow(HANDLE hwnd, uint32 cmd)');
 const IsWindowVisible = user32.func('bool __stdcall IsWindowVisible(HANDLE hwnd)');
 const GetWindowThreadProcessId = user32.func('uint32 __stdcall GetWindowThreadProcessId(HANDLE hwnd, _Out_ uint32 *pid)');
+const keybd_event = user32.func('void __stdcall keybd_event(uint8 vk, uint8 scan, uint32 flags, uintptr extra)');
+const SetForegroundWindow = user32.func('bool __stdcall SetForegroundWindow(HANDLE hwnd)');
 const dwmapi = koffi.load('dwmapi.dll');
 const DwmGetWindowAttribute = dwmapi.func('int32 __stdcall DwmGetWindowAttribute(HANDLE hwnd, uint32 attr, _Out_ uint32 *value, uint32 size)');
 
@@ -129,4 +131,35 @@ function appWindowAt(points) {
   return false;
 }
 
-module.exports = { clipboardSequence, powerStatus, fullscreenOnPrimary, mouseButtonDown, appWindowAt };
+const MODIFIER_KEYS = [0x10, 0x11, 0x12, 0x5b, 0x5c]; // shift, ctrl, alt, left/right win
+const VK_CONTROL = 0x11;
+const VK_V = 0x56;
+const KEYEVENTF_KEYUP = 2;
+
+function modifiersDown() {
+  return MODIFIER_KEYS.some((vk) => (GetAsyncKeyState(vk) & 0x8000) !== 0);
+}
+
+// Ctrl+V into whatever window has focus. The island never takes focus, so that
+// is the app the user was working in.
+function sendPaste() {
+  keybd_event(VK_CONTROL, 0, 0, 0);
+  keybd_event(VK_V, 0, 0, 0);
+  keybd_event(VK_V, 0, KEYEVENTF_KEYUP, 0);
+  keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
+}
+
+const foregroundWindow = () => GetForegroundWindow();
+const focusWindow = (hwnd) => (hwnd ? SetForegroundWindow(hwnd) : false);
+
+module.exports = {
+  clipboardSequence,
+  powerStatus,
+  fullscreenOnPrimary,
+  mouseButtonDown,
+  appWindowAt,
+  modifiersDown,
+  sendPaste,
+  foregroundWindow,
+  focusWindow,
+};

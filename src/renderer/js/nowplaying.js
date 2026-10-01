@@ -121,6 +121,8 @@ export class NowPlaying {
     // Scrolling anywhere on the island nudges the system volume.
     island.el.addEventListener('wheel', (e) => {
       if (e.ctrlKey) return;
+      // Scrolling a long snippet list or the editor's text must stay scrolling.
+      if (e.target.closest('.snip-editor, .clip-grid.is-scrollable')) return;
       e.preventDefault();
       const step = (e.deltaY < 0 ? 1 : -1) * (e.shiftKey ? 0.01 : 0.04);
       const base = this.volume.muted ? 0 : this.volume.level;
