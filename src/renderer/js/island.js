@@ -17,11 +17,13 @@ const PRESETS = {
   boot: { w: [220, 17.5], h: [260, 21], r: [260, 23] },
 };
 
-// Pass-through: the pill sits right over browser tabs, so hovering it must not
-// steal clicks. It turns to glass and lets clicks through; resting the cursor
-// for DWELL ms (no click) means "I want the island" — it fills back in over the
-// last ARM_TIME ms and opens. Keep ARM_TIME in sync with .is-arming in styles.css.
-const DWELL = 3000;
+// Pass-through: when an app (say, a browser with its tabs) sits under the pill,
+// hovering must not steal its clicks. The pill turns to glass and lets clicks
+// through; resting the cursor for DWELL ms (no click) means "I want the island"
+// — it fills back in over the last ARM_TIME ms and opens. Over a bare desktop
+// none of this applies and hover opens it right away.
+// Keep ARM_TIME in sync with .is-arming in styles.css.
+const DWELL = 1800;
 const ARM_TIME = 450;
 const ARM_DELAY = DWELL - ARM_TIME;
 
@@ -44,6 +46,7 @@ export class Island {
     this.dragging = false;
     this.suspended = false;
     this.passThrough = true;
+    this.appBelow = true;
     this.pressed = false;
     this.interactive = false;
 
@@ -262,9 +265,20 @@ export class Island {
     else this.leave();
   }
 
-  // In the small states the pill gives way to whatever is underneath it.
+  // In the small states the pill gives way to an app underneath it.
   yields() {
-    return this.passThrough && (this.mode === 'compact' || this.mode === 'activity');
+    return this.passThrough && this.appBelow && (this.mode === 'compact' || this.mode === 'activity');
+  }
+
+  setAppBelow(below) {
+    if (below === this.appBelow) return;
+    this.appBelow = below;
+    this.syncPointerState();
+    // Hovering while the answer flips: restart the approach under the new rules.
+    if (this.over && this.mode !== 'expanded') {
+      this.cancelDwell();
+      this.enter();
+    }
   }
 
   syncPointerState() {

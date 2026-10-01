@@ -6,7 +6,7 @@ const { ClipboardHistory } = require('./clipboard');
 const { SystemMonitor } = require('./system');
 const { startNotifyServer } = require('./notify-server');
 const { trayIcon } = require('./tray');
-const { fullscreenOnPrimary, mouseButtonDown } = require('./win32');
+const { fullscreenOnPrimary, mouseButtonDown, appWindowAt } = require('./win32');
 
 // The window is a fixed transparent canvas; the island morphs inside it and
 // everything outside the island is click-through.
@@ -73,6 +73,7 @@ let settings = DEFAULT_SETTINGS;
 let pinned = false;
 let pointerInside = false;
 let fullscreen = false;
+let appBelow = true;
 let mediaState = { type: 'media', active: false };
 let volumeState = null;
 const bridge = new SystemBridge();
@@ -201,15 +202,39 @@ function createTray() {
 // so poll the cursor to tell the renderer about that edge. While the cursor is
 // inside, also watch the mouse buttons: clicks that pass through the pill to
 // the app underneath never reach the renderer, but they tell it "not for me".
+// Is an app window (browser, editor…) sitting under the pill right now? Only
+// then does the pill need to get out of the way; over a bare desktop it opens
+// on hover straight away. Sample its centre and both ends (top 7 + half of 34 px).
+function updateAppBelow() {
+  if (!win) return;
+  const b = win.getBounds();
+  const y = b.y + 24;
+  const points = [-60, 0, 60].map((dx) => screen.dipToScreenPoint({ x: b.x + WIN_W / 2 + dx, y }));
+  let below = appBelow;
+  try {
+    below = appWindowAt(points);
+  } catch (err) {
+    console.log('app-below check failed:', err.message);
+  }
+  if (below !== appBelow) {
+    appBelow = below;
+    send('appBelow', below);
+  }
+}
+
 function watchPointer() {
   let buttonDown = false;
+  let tick = 0;
   setInterval(() => {
     if (!win) return;
+    if (tick++ % 10 === 0) updateAppBelow();
     const p = screen.getCursorScreenPoint();
     const b = win.getBounds();
     const inside = p.x >= b.x && p.x < b.x + b.width && p.y >= b.y && p.y < b.y + b.height;
     if (inside !== pointerInside) {
       pointerInside = inside;
+      // Fresh answer the moment the cursor arrives, before the renderer decides.
+      if (inside) updateAppBelow();
       send('pointer', { inside });
     }
     const down = inside && mouseButtonDown();
@@ -249,6 +274,7 @@ function wireIpc() {
     settings,
     pinned,
     fullscreen,
+    appBelow,
     forceDemo,
     clips: clips.list(),
     system: system.state,

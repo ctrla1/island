@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 const CHANNELS = new Set([
   'media', 'volume', 'system', 'clips', 'clip:captured', 'notify', 'charging',
-  'demo', 'escape', 'pointer', 'pin', 'settings', 'fullscreen',
+  'demo', 'escape', 'pointer', 'pin', 'settings', 'fullscreen', 'appBelow',
 ]);
 
 contextBridge.exposeInMainWorld('island', {

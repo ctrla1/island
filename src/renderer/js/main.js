@@ -43,6 +43,7 @@ async function start() {
     renderNotification: createNotificationRenderer($('layer-notification')),
   });
   island.setPassThrough(settings.passThrough !== false);
+  island.setAppBelow(init.appBelow !== false);
 
   const quick = new QuickInfo({ island, forceDemo: init.forceDemo });
   const clips = new ClipboardPanel({ api, island, springEase: SPRING_SOFT });
@@ -73,6 +74,7 @@ async function start() {
   api.on('escape', () => island.escape());
   api.on('pin', (pinned) => island.setPinned(pinned));
   api.on('fullscreen', (active) => island.setSuspended(active));
+  api.on('appBelow', (below) => island.setAppBelow(below));
   api.on('pointer', ({ inside, press }) => {
     if (!inside) island.pointer(-1e4, -1e4);
     if (press) island.press();

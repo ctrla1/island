@@ -28,6 +28,12 @@ const MonitorFromWindow = user32.func('HANDLE __stdcall MonitorFromWindow(HANDLE
 const GetMonitorInfoW = user32.func('bool __stdcall GetMonitorInfoW(HANDLE monitor, _Inout_ MONITORINFO *info)');
 const SHQueryUserNotificationState = shell32.func('int32 __stdcall SHQueryUserNotificationState(_Out_ int32 *state)');
 const GetAsyncKeyState = user32.func('int16 __stdcall GetAsyncKeyState(int key)');
+const GetTopWindow = user32.func('HANDLE __stdcall GetTopWindow(HANDLE hwnd)');
+const GetWindow = user32.func('HANDLE __stdcall GetWindow(HANDLE hwnd, uint32 cmd)');
+const IsWindowVisible = user32.func('bool __stdcall IsWindowVisible(HANDLE hwnd)');
+const GetWindowThreadProcessId = user32.func('uint32 __stdcall GetWindowThreadProcessId(HANDLE hwnd, _Out_ uint32 *pid)');
+const dwmapi = koffi.load('dwmapi.dll');
+const DwmGetWindowAttribute = dwmapi.func('int32 __stdcall DwmGetWindowAttribute(HANDLE hwnd, uint32 attr, _Out_ uint32 *value, uint32 size)');
 
 const MOUSE_BUTTONS = [0x01, 0x02, 0x04]; // left, right, middle
 
@@ -91,4 +97,36 @@ function fullscreenOnPrimary(ownHwnd) {
   return rect.left <= m.left && rect.top <= m.top && rect.right >= m.right && rect.bottom >= m.bottom;
 }
 
-module.exports = { clipboardSequence, powerStatus, fullscreenOnPrimary, mouseButtonDown };
+const GW_HWNDNEXT = 2;
+const WS_EX_TRANSPARENT = 0x20;
+const DWMWA_CLOAKED = 14;
+
+function className(hwnd) {
+  const name = Buffer.alloc(512);
+  const len = GetClassNameW(hwnd, name, 256);
+  return name.toString('utf16le', 0, len * 2);
+}
+
+// Is a real application window (a browser, an editor…) under any of these
+// physical screen points? Walks top-level windows front to back, skipping our
+// own, hidden, cloaked and click-through overlays; reaching the desktop or the
+// taskbar first means nothing is there.
+function appWindowAt(points) {
+  let hwnd = GetTopWindow(null);
+  for (let i = 0; hwnd && i < 1000; i++, hwnd = GetWindow(hwnd, GW_HWNDNEXT)) {
+    if (!IsWindowVisible(hwnd) || IsIconic(hwnd)) continue;
+    const pid = [0];
+    GetWindowThreadProcessId(hwnd, pid);
+    if (pid[0] === process.pid) continue;
+    if (GetWindowLongW(hwnd, -20) & WS_EX_TRANSPARENT) continue;
+    const cloaked = [0];
+    if (DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, cloaked, 4) === 0 && cloaked[0]) continue;
+    const r = {};
+    if (!GetWindowRect(hwnd, r)) continue;
+    if (!points.some((p) => p.x >= r.left && p.x < r.right && p.y >= r.top && p.y < r.bottom)) continue;
+    return !SHELL_CLASSES.has(className(hwnd));
+  }
+  return false;
+}
+
+module.exports = { clipboardSequence, powerStatus, fullscreenOnPrimary, mouseButtonDown, appWindowAt };
