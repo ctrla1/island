@@ -115,7 +115,20 @@ img { -webkit-user-drag: none; }
   opacity: 1;
   scale: 1;
   filter: none;
-  transition: opacity 0.45s var(--ease), scale 0.9s var(--spring-pop), filter 0.5s var(--ease);
+  transition: opacity 0.3s var(--ease), scale 0.9s var(--spring-pop), filter 0.5s var(--ease);
+}
+
+/* Pass-through hover: the pill turns to glass so the tab underneath shows and
+   takes the click; resting there fills it back in right before it opens. */
+.island.is-booted.is-ghost {
+  opacity: 0.18;
+  scale: 0.97;
+  transition: opacity 0.14s var(--ease), scale 0.3s var(--ease), filter 0.2s var(--ease);
+}
+.island.is-booted.is-ghost.is-arming {
+  opacity: 1;
+  scale: 1;
+  transition: opacity 0.38s cubic-bezier(0.4, 0, 0.6, 1), scale 0.42s var(--spring-soft);
 }
 
 /* Inner rim: a hair of light along the top edge sells the glass. */

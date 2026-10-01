@@ -42,6 +42,7 @@ async function start() {
     },
     renderNotification: createNotificationRenderer($('layer-notification')),
   });
+  island.setPassThrough(settings.passThrough !== false);
 
   const quick = new QuickInfo({ island, forceDemo: init.forceDemo });
   const clips = new ClipboardPanel({ api, island, springEase: SPRING_SOFT });
@@ -72,12 +73,14 @@ async function start() {
   api.on('escape', () => island.escape());
   api.on('pin', (pinned) => island.setPinned(pinned));
   api.on('fullscreen', (active) => island.setSuspended(active));
-  api.on('pointer', ({ inside }) => {
+  api.on('pointer', ({ inside, press }) => {
     if (!inside) island.pointer(-1e4, -1e4);
+    if (press) island.press();
   });
   api.on('settings', (next) => {
     settings = next;
     player.setSettings(next);
+    island.setPassThrough(next.passThrough !== false);
   });
 
   let demoIndex = 0;

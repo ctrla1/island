@@ -27,6 +27,14 @@ const IsIconic = user32.func('bool __stdcall IsIconic(HANDLE hwnd)');
 const MonitorFromWindow = user32.func('HANDLE __stdcall MonitorFromWindow(HANDLE hwnd, uint32 flags)');
 const GetMonitorInfoW = user32.func('bool __stdcall GetMonitorInfoW(HANDLE monitor, _Inout_ MONITORINFO *info)');
 const SHQueryUserNotificationState = shell32.func('int32 __stdcall SHQueryUserNotificationState(_Out_ int32 *state)');
+const GetAsyncKeyState = user32.func('int16 __stdcall GetAsyncKeyState(int key)');
+
+const MOUSE_BUTTONS = [0x01, 0x02, 0x04]; // left, right, middle
+
+// True while any mouse button is held — lets us notice clicks that pass through the window.
+function mouseButtonDown() {
+  return MOUSE_BUTTONS.some((vk) => (GetAsyncKeyState(vk) & 0x8000) !== 0);
+}
 
 function clipboardSequence() {
   return GetClipboardSequenceNumber();
@@ -83,4 +91,4 @@ function fullscreenOnPrimary(ownHwnd) {
   return rect.left <= m.left && rect.top <= m.top && rect.right >= m.right && rect.bottom >= m.bottom;
 }
 
-module.exports = { clipboardSequence, powerStatus, fullscreenOnPrimary };
+module.exports = { clipboardSequence, powerStatus, fullscreenOnPrimary, mouseButtonDown };

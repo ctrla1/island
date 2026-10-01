@@ -15,9 +15,13 @@ const PRESETS = {
   pop: { w: [330, 21], h: [300, 21.5], r: [300, 26] },
   settle: { w: [380, 31], h: [380, 32], r: [380, 34] },
   boot: { w: [220, 17.5], h: [260, 21], r: [260, 23] },
-  magnet: { w: [260, 22], h: [260, 22], r: [260, 24] },
 };
-const MAGNET_RADIUS = 90;
+
+// Pass-through: the pill sits right over browser tabs, so hovering it must not
+// steal clicks. It turns to glass and lets clicks through; resting the cursor
+// for DWELL ms (no click) means "I want the island" — it fills back in and opens.
+const DWELL = 560;
+const ARM_DELAY = 180;
 
 export class Island {
   constructor({ el, layers, hero, api, renderNotification }) {
@@ -36,8 +40,10 @@ export class Island {
     this.over = false;
     this.suppressed = false;
     this.dragging = false;
-    this.proximity = 0;
     this.suspended = false;
+    this.passThrough = true;
+    this.pressed = false;
+    this.interactive = false;
 
     this.notification = null;
     this.queue = [];
@@ -58,8 +64,10 @@ export class Island {
     new ResizeObserver(() => this.relayout()).observe(layers.expanded);
     new ResizeObserver(() => this.relayout()).observe(layers.notification);
 
+    // No DOM mouseleave here: while the window is click-through, Windows reports
+    // a leave right after every forwarded move. Leaving is detected from the
+    // coordinates themselves, and the main process reports leaving the window.
     document.addEventListener('mousemove', (e) => this.pointer(e.clientX, e.clientY));
-    document.documentElement.addEventListener('mouseleave', () => this.pointer(-1e4, -1e4));
     el.addEventListener('click', (e) => this.click(e));
   }
 
@@ -84,11 +92,8 @@ export class Island {
         return { w: NOTIFICATION_W, h: this.layers.notification.offsetHeight, r: 30 };
       case 'activity':
         return { w: this.activity.width, h: ACTIVITY_H, r: ACTIVITY_H / 2 };
-      default: {
-        // The pill swells a touch as the cursor approaches — it feels alive.
-        const m = this.proximity;
-        return { w: this.compactW + 14 * m, h: COMPACT_H + 3 * m, r: (COMPACT_H + 3 * m) / 2 };
-      }
+      default:
+        return { w: this.compactW, h: COMPACT_H, r: COMPACT_H / 2 };
     }
   }
 
@@ -149,6 +154,8 @@ export class Island {
     this.retarget(preset || this.presetFor(prev, mode));
     this.updateHero();
     this.api.setExpanded(mode === 'expanded');
+    if (mode === 'notification') this.cancelDwell();
+    this.syncPointerState();
     for (const fn of this.listeners) fn(mode, prev);
   }
 
@@ -210,7 +217,8 @@ export class Island {
       this.over = false;
       this.wantExpand = false;
       this.dragging = false;
-      this.proximity = 0;
+      this.pressed = false;
+      this.cancelDwell();
       this.clearActivity();
       clearTimeout(this.notifTimer);
       this.notification = null;
@@ -245,28 +253,53 @@ export class Island {
     const r = this.el.getBoundingClientRect();
     const pad = 8;
     const over = x >= r.left - pad && x <= r.right + pad && y >= -1 && y <= r.bottom + pad;
-    this.magnet(over ? 1 : 1 - Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(y - r.bottom, 0)) / MAGNET_RADIUS);
     if (over === this.over) return;
     this.over = over;
-    this.api.setInteractive(over || this.dragging);
+    this.syncPointerState();
     if (over) this.enter();
     else this.leave();
   }
 
-  magnet(value) {
-    const m = clamp(value, 0, 1);
-    const eased = m * m * (3 - 2 * m);
-    if (Math.abs(eased - this.proximity) < 0.015 && !(eased === 0 && this.proximity !== 0)) return;
-    this.proximity = eased;
-    if (this.mode === 'compact') this.retarget('magnet');
+  // In the small states the pill gives way to whatever is underneath it.
+  yields() {
+    return this.passThrough && (this.mode === 'compact' || this.mode === 'activity');
+  }
+
+  syncPointerState() {
+    const interactive = this.dragging || (this.over && !this.yields());
+    if (interactive !== this.interactive) {
+      this.interactive = interactive;
+      this.api.setInteractive(interactive);
+    }
+    const ghost = this.over && this.yields();
+    this.el.classList.toggle('is-ghost', ghost);
+    if (!ghost) this.el.classList.remove('is-arming');
+  }
+
+  setPassThrough(enabled) {
+    this.passThrough = enabled;
+    this.cancelDwell();
+    this.syncPointerState();
+  }
+
+  // A mouse button went down while the cursor was over us. In pass-through
+  // states that click went to the app below — the user is busy there.
+  press() {
+    if (!this.over || !this.yields()) return;
+    this.pressed = true;
+    this.cancelDwell();
+  }
+
+  cancelDwell() {
+    clearTimeout(this.enterTimer);
+    clearTimeout(this.armTimer);
+    this.el.classList.remove('is-arming');
   }
 
   setDragging(dragging) {
     this.dragging = dragging;
-    if (!dragging) {
-      this.api.setInteractive(this.over);
-      if (!this.over) this.leave();
-    }
+    this.syncPointerState();
+    if (!dragging && !this.over) this.leave();
   }
 
   enter() {
@@ -277,6 +310,15 @@ export class Island {
       return;
     }
     clearTimeout(this.enterTimer);
+    if (this.yields()) {
+      if (this.pressed) return;
+      this.armTimer = setTimeout(() => this.el.classList.add('is-arming'), ARM_DELAY);
+      this.enterTimer = setTimeout(() => {
+        this.wantExpand = true;
+        this.evaluate();
+      }, DWELL);
+      return;
+    }
     this.enterTimer = setTimeout(() => {
       this.wantExpand = true;
       this.evaluate();
@@ -284,7 +326,8 @@ export class Island {
   }
 
   leave() {
-    clearTimeout(this.enterTimer);
+    this.cancelDwell();
+    this.pressed = false;
     this.suppressed = false;
     if (this.notification) this.resumeNotification();
     if (this.dragging) return;

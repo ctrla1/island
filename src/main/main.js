@@ -6,7 +6,7 @@ const { ClipboardHistory } = require('./clipboard');
 const { SystemMonitor } = require('./system');
 const { startNotifyServer } = require('./notify-server');
 const { trayIcon } = require('./tray');
-const { fullscreenOnPrimary } = require('./win32');
+const { fullscreenOnPrimary, mouseButtonDown } = require('./win32');
 
 // The window is a fixed transparent canvas; the island morphs inside it and
 // everything outside the island is click-through.
@@ -22,7 +22,7 @@ app.setAppUserModelId('dev.island.desktop');
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json');
-const DEFAULT_SETTINGS = { demoMedia: false, copyIndicator: true, volumeHud: true, hideInFullscreen: true };
+const DEFAULT_SETTINGS = { demoMedia: false, copyIndicator: true, volumeHud: true, hideInFullscreen: true, passThrough: true };
 
 function loadSettings() {
   try {
@@ -46,6 +46,7 @@ const STRINGS = {
     copyIndicator: 'Индикатор «Скопировано»',
     volumeHud: 'Индикатор громкости',
     hideInFullscreen: 'Скрывать в играх и полноэкранных приложениях',
+    passThrough: 'Пропускать клики сквозь капсулу',
     login: 'Запускать при входе в Windows',
     reload: 'Перезапустить интерфейс',
     quit: 'Выйти',
@@ -59,6 +60,7 @@ const STRINGS = {
     copyIndicator: '“Copied” indicator',
     volumeHud: 'Volume indicator',
     hideInFullscreen: 'Hide over games and full-screen apps',
+    passThrough: 'Let clicks pass through the pill',
     login: 'Launch at Windows sign-in',
     reload: 'Reload interface',
     quit: 'Quit',
@@ -172,6 +174,7 @@ function buildTrayMenu() {
     { label: t('demoMedia'), type: 'checkbox', checked: settings.demoMedia, click: toggle('demoMedia') },
     { label: t('copyIndicator'), type: 'checkbox', checked: settings.copyIndicator, click: toggle('copyIndicator') },
     { label: t('volumeHud'), type: 'checkbox', checked: settings.volumeHud, click: toggle('volumeHud') },
+    { label: t('passThrough'), type: 'checkbox', checked: settings.passThrough, click: toggle('passThrough') },
     { label: t('hideInFullscreen'), type: 'checkbox', checked: settings.hideInFullscreen, click: toggle('hideInFullscreen') },
     {
       label: t('login'),
@@ -195,8 +198,11 @@ function createTray() {
 }
 
 // Forwarded mouse events stop once the cursor leaves the window entirely,
-// so poll the cursor to tell the renderer about that edge.
+// so poll the cursor to tell the renderer about that edge. While the cursor is
+// inside, also watch the mouse buttons: clicks that pass through the pill to
+// the app underneath never reach the renderer, but they tell it "not for me".
 function watchPointer() {
+  let buttonDown = false;
   setInterval(() => {
     if (!win) return;
     const p = screen.getCursorScreenPoint();
@@ -206,7 +212,10 @@ function watchPointer() {
       pointerInside = inside;
       send('pointer', { inside });
     }
-  }, 60);
+    const down = inside && mouseButtonDown();
+    if (down && !buttonDown) send('pointer', { inside, press: true });
+    buttonDown = down;
+  }, 25);
 }
 
 // Games, full-screen video and slideshows own the screen: step out of the way
