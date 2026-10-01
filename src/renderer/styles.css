@@ -886,7 +886,15 @@ img { -webkit-user-drag: none; }
 }
 .clip-empty svg { width: 16px; height: 16px; opacity: 0.8; }
 
-.clip-grid.snip-grid { max-height: 206px; overflow-y: auto; scrollbar-width: none; }
+/* Scrolls when long. The padding (cancelled by the negative margin) leaves room
+   for the hover lift and press scale, which the scroll box would otherwise clip. */
+.clip-grid.snip-grid {
+  max-height: 214px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 4px 3px;
+  margin: -4px -3px;
+}
 .clip-grid.snip-grid::-webkit-scrollbar { display: none; }
 .clip-grid.is-scrollable {
   mask-image: linear-gradient(180deg, #000 calc(100% - 18px), transparent);
