@@ -23,8 +23,8 @@ const PRESETS = {
 // — it fills back in over the last ARM_TIME ms and opens. Over a bare desktop
 // none of this applies and hover opens it right away.
 // Keep ARM_TIME in sync with .is-arming in styles.css.
-const DWELL = 1800;
-const ARM_TIME = 450;
+const DWELL = 1000;
+const ARM_TIME = 350;
 const ARM_DELAY = DWELL - ARM_TIME;
 
 export class Island {
