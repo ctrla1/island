@@ -128,7 +128,7 @@ img { -webkit-user-drag: none; }
 .island.is-booted.is-ghost.is-arming {
   opacity: 1;
   scale: 1;
-  transition: opacity 0.38s cubic-bezier(0.4, 0, 0.6, 1), scale 0.42s var(--spring-soft);
+  transition: opacity 0.45s cubic-bezier(0.4, 0, 0.6, 1), scale 0.45s var(--spring-soft);
 }
 
 /* Inner rim: a hair of light along the top edge sells the glass. */

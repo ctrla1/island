@@ -19,9 +19,11 @@ const PRESETS = {
 
 // Pass-through: the pill sits right over browser tabs, so hovering it must not
 // steal clicks. It turns to glass and lets clicks through; resting the cursor
-// for DWELL ms (no click) means "I want the island" — it fills back in and opens.
-const DWELL = 560;
-const ARM_DELAY = 180;
+// for DWELL ms (no click) means "I want the island" — it fills back in over the
+// last ARM_TIME ms and opens. Keep ARM_TIME in sync with .is-arming in styles.css.
+const DWELL = 3000;
+const ARM_TIME = 450;
+const ARM_DELAY = DWELL - ARM_TIME;
 
 export class Island {
   constructor({ el, layers, hero, api, renderNotification }) {
