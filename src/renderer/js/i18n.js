@@ -1,0 +1,119 @@
+const STRINGS = {
+  en: {
+    clipboard: 'Clipboard',
+    clear: 'Clear',
+    showAll: 'All',
+    showLess: 'Less',
+    copied: 'Copied',
+    charging: 'Charging',
+    notPlaying: 'Not playing',
+    notPlayingHint: 'Start music in any app',
+    clipEmpty: 'Copy anything — it will land here',
+    battery: 'Battery',
+    power: 'Power',
+    onAC: 'AC power',
+    wifi: 'Wi‑Fi',
+    ethernet: 'Network',
+    cellular: 'Cellular',
+    offline: 'Offline',
+    noInternet: 'No internet',
+    cpu: 'CPU',
+    memory: 'Memory',
+    now: 'now',
+    min: 'm',
+    hour: 'h',
+    image: 'Image',
+    link: 'Link',
+    color: 'Color',
+    code: 'Code',
+    text: 'Text',
+    email: 'Email',
+    volume: 'Volume',
+    muted: 'Muted',
+    gb: 'GB',
+    demo: 'Demo',
+    nowPlaying: 'Now playing',
+  },
+  ru: {
+    clipboard: 'Буфер обмена',
+    clear: 'Очистить',
+    showAll: 'Все',
+    showLess: 'Меньше',
+    copied: 'Скопировано',
+    charging: 'Зарядка',
+    notPlaying: 'Ничего не играет',
+    notPlayingHint: 'Включите музыку в плеере',
+    clipEmpty: 'Скопируйте что-нибудь — оно появится здесь',
+    battery: 'Батарея',
+    power: 'Питание',
+    onAC: 'От сети',
+    wifi: 'Wi‑Fi',
+    ethernet: 'Сеть',
+    cellular: 'Сотовая',
+    offline: 'Нет сети',
+    noInternet: 'Без интернета',
+    cpu: 'ЦП',
+    memory: 'Память',
+    now: 'сейчас',
+    min: 'мин',
+    hour: 'ч',
+    image: 'Изображение',
+    link: 'Ссылка',
+    color: 'Цвет',
+    code: 'Код',
+    text: 'Текст',
+    email: 'Почта',
+    volume: 'Громкость',
+    muted: 'Без звука',
+    gb: 'ГБ',
+    demo: 'Демо',
+    nowPlaying: 'Сейчас играет',
+  },
+};
+
+const DEMO_NOTIFICATIONS = {
+  en: [
+    { app: 'Messages', icon: 'messages', color: '#34c759', title: 'Anna', body: 'Running five minutes late — grab us the table by the window?' },
+    { app: 'Calendar', icon: 'calendar', color: '#ff453a', title: 'Design review in 10 minutes', body: 'Studio B · 15:00 – 15:45' },
+    { app: 'Mail', icon: 'mail', color: '#0a84ff', title: 'Daniel Orlov', body: 'Final cut is ready. Three notes on the intro, otherwise good to ship.' },
+    { app: 'Reminders', icon: 'reminders', color: '#ff9f0a', title: 'Send the v1.2 build', body: 'Today, 18:00' },
+    { app: 'Delivery', icon: 'box', color: '#8e7cff', title: 'Courier is on the way', body: 'Arriving in about 12 minutes' },
+  ],
+  ru: [
+    { app: 'Сообщения', icon: 'messages', color: '#34c759', title: 'Аня', body: 'Опаздываю минут на пять — займёшь столик у окна?' },
+    { app: 'Календарь', icon: 'calendar', color: '#ff453a', title: 'Дизайн-ревью через 10 минут', body: 'Переговорная B · 15:00 – 15:45' },
+    { app: 'Почта', icon: 'mail', color: '#0a84ff', title: 'Даниил Орлов', body: 'Финальный монтаж готов. Три правки по интро, в остальном можно отдавать.' },
+    { app: 'Напоминания', icon: 'reminders', color: '#ff9f0a', title: 'Отправить сборку v1.2', body: 'Сегодня, 18:00' },
+    { app: 'Доставка', icon: 'box', color: '#8e7cff', title: 'Курьер уже в пути', body: 'Будет примерно через 12 минут' },
+  ],
+};
+
+const DEMO_CLIPS = {
+  en: [
+    { kind: 'text', text: 'Call moved to 4:30 pm, link is in the calendar', age: 20 },
+    { kind: 'link', text: 'https://www.figma.com/design/island-v2', age: 140 },
+    { kind: 'color', text: '#FF7A45', age: 400 },
+    { kind: 'code', text: 'const island = new Island({ el, layers });', age: 900 },
+    { kind: 'email', text: 'hello@island.app', age: 1900 },
+  ],
+  ru: [
+    { kind: 'text', text: 'Созвон перенесли на 16:30, ссылка в календаре', age: 20 },
+    { kind: 'link', text: 'https://www.figma.com/design/island-v2', age: 140 },
+    { kind: 'color', text: '#FF7A45', age: 400 },
+    { kind: 'code', text: 'const island = new Island({ el, layers });', age: 900 },
+    { kind: 'email', text: 'hello@island.app', age: 1900 },
+  ],
+};
+
+let lang = 'en';
+
+export function setLocale(locale) {
+  lang = STRINGS[locale] ? locale : 'en';
+  document.documentElement.lang = lang;
+}
+
+export const t = (key) => STRINGS[lang][key] ?? key;
+export const demoNotifications = () => DEMO_NOTIFICATIONS[lang];
+export const demoClips = () =>
+  DEMO_CLIPS[lang].map(({ age, ...item }, i) => ({ ...item, id: -(i + 1), ts: Date.now() - age * 1000 }));
+export const intlLocale = () => (lang === 'ru' ? 'ru-RU' : 'en-GB');

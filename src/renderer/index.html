@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'">
+  <title>Island</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="island" id="island">
+    <div class="ambient" id="ambient"><img id="ambient-img" alt=""></div>
+    <div class="tint" id="tint"></div>
+    <div class="grain"></div>
+
+    <!-- Hero artwork: one element that travels between the pill and the expanded card -->
+    <div class="hero" id="hero">
+      <div class="hero-empty" data-icon="note"></div>
+      <img class="hero-img" alt="">
+      <img class="hero-img" alt="">
+    </div>
+
+    <!-- Idle pill -->
+    <section class="layer layer-fill layer-compact" id="layer-compact">
+      <div class="c-side c-left">
+        <span class="c-time" id="c-time">--:--</span>
+      </div>
+      <div class="c-side c-right">
+        <div class="eq eq-sm" id="c-eq"><i><b></b></i><i><b></b></i><i><b></b></i><i><b></b></i></div>
+        <div class="c-status" id="c-status"></div>
+      </div>
+    </section>
+
+    <!-- Live activities: charging, copied, volume, track change -->
+    <section class="layer layer-fill layer-activity" id="layer-activity">
+      <div class="a-left" id="a-left"></div>
+      <div class="a-right" id="a-right"></div>
+    </section>
+
+    <!-- Notification -->
+    <section class="layer layer-notification" id="layer-notification"></section>
+
+    <!-- Expanded -->
+    <section class="layer layer-expanded" id="layer-expanded">
+      <div class="x-top">
+        <div class="np" id="np">
+          <div class="np-head">
+            <div class="np-art-slot"></div>
+            <div class="np-meta">
+              <div class="np-title marquee" id="np-title"><span></span></div>
+              <div class="np-artist" id="np-artist"></div>
+            </div>
+            <div class="eq eq-lg" id="np-eq"><i><b></b></i><i><b></b></i><i><b></b></i><i><b></b></i><i><b></b></i></div>
+          </div>
+          <div class="np-progress">
+            <span class="np-time" id="np-elapsed">0:00</span>
+            <div class="slider slider-seek" id="np-seek"></div>
+            <span class="np-time np-time-r" id="np-remaining">-0:00</span>
+          </div>
+          <div class="np-controls">
+            <div class="np-source" id="np-source"></div>
+            <div class="np-buttons">
+              <button class="btn btn-skip" id="np-prev" data-icon="prev" aria-label="Previous"></button>
+              <button class="btn btn-play" id="np-play" aria-label="Play">
+                <span class="play-glyph play-glyph-play" data-icon="play"></span>
+                <span class="play-glyph play-glyph-pause" data-icon="pause"></span>
+              </button>
+              <button class="btn btn-skip" id="np-next" data-icon="next" aria-label="Next"></button>
+            </div>
+            <div class="np-volume">
+              <button class="btn btn-mini" id="np-mute"></button>
+              <div class="slider slider-volume" id="np-volume"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="x-rule-v"></div>
+
+        <div class="qi" id="qi">
+          <div class="qi-clock">
+            <span class="qi-time" id="qi-time">--:--</span>
+            <span class="qi-date" id="qi-date"></span>
+          </div>
+          <div class="qi-grid">
+            <div class="tile" id="tile-power">
+              <div class="tile-top"><span class="tile-label"></span><span class="tile-icon"></span></div>
+              <div class="tile-value"></div>
+            </div>
+            <div class="tile" id="tile-net">
+              <div class="tile-top"><span class="tile-label"></span><span class="tile-icon"></span></div>
+              <div class="tile-value"></div>
+            </div>
+            <div class="tile tile-graph" id="tile-cpu">
+              <svg class="spark" viewBox="0 0 100 40" preserveAspectRatio="none"><path class="spark-area"/><path class="spark-line"/></svg>
+              <div class="tile-top"><span class="tile-label"></span><span class="tile-sub"></span></div>
+              <div class="tile-value"></div>
+            </div>
+            <div class="tile" id="tile-mem">
+              <div class="tile-top"><span class="tile-label"></span><span class="tile-sub"></span></div>
+              <div class="tile-value"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="x-rule-h"></div>
+
+      <div class="clip" id="clip">
+        <div class="clip-head">
+          <div class="clip-title"><span id="clip-title"></span><span class="clip-count" id="clip-count"></span></div>
+          <div class="clip-actions">
+            <button class="chip" id="clip-more"><span></span><i data-icon="chevron"></i></button>
+            <button class="chip" id="clip-clear"></button>
+          </div>
+        </div>
+        <div class="clip-grid" id="clip-grid"></div>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

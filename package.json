@@ -1,0 +1,81 @@
+{
+  "name": "island",
+  "productName": "Island",
+  "version": "1.0.0",
+  "description": "Dynamic Island for Windows — a premium desktop overlay with now playing, clipboard history and quick system status",
+  "main": "src/main/main.js",
+  "author": "ctrla1",
+  "license": "MIT",
+  "homepage": "https://github.com/ctrla1/island",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ctrla1/island.git"
+  },
+  "keywords": [
+    "dynamic-island",
+    "windows",
+    "electron",
+    "overlay",
+    "now-playing",
+    "clipboard"
+  ],
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "demo": "electron . --demo",
+    "icon": "node scripts/make-icon.js",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "dependencies": {
+    "koffi": "^3.3.2"
+  },
+  "devDependencies": {
+    "@fontsource-variable/manrope": "^5.3.0",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "allowScripts": {
+    "electron@44.5.1": true,
+    "koffi@3.3.2": true
+  },
+  "build": {
+    "appId": "dev.island.desktop",
+    "productName": "Island",
+    "copyright": "Copyright © 2026 Island contributors",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "src/bridge/**"
+    ],
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "Island-Setup-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Island",
+      "uninstallDisplayName": "Island",
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
+    }
+  }
+}
