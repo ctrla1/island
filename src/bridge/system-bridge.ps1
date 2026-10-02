@@ -243,6 +243,8 @@ while ($true) {
   if ($tick % 5 -eq 0) { try { Poll-Media $false } catch { } }
   if ($tick % 2 -eq 0) { Poll-Volume $false }
   if ($tick % 50 -eq 0) { Poll-Network $false }
+  # Heartbeat for the app's watchdog: a silent bridge is restarted.
+  if ($tick % 30 -eq 0) { Emit ([ordered]@{ type = 'alive' }) }
 
   $tick++
   Start-Sleep -Milliseconds 100

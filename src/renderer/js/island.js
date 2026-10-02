@@ -37,7 +37,7 @@ export class Island {
     this.listeners = [];
 
     this.mode = 'boot';
-    this.compactW = 132;
+    this.compactW = 112;
     this.hasMedia = false;
     this.pinned = false;
     this.wantExpand = false;

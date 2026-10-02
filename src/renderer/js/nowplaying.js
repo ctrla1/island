@@ -44,8 +44,8 @@ export function formatTime(ms) {
   return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
 }
 
-const COMPACT_IDLE_W = 132;
-const COMPACT_MEDIA_W = 196;
+const COMPACT_IDLE_W = 112;
+const COMPACT_MEDIA_W = 128;
 
 export class NowPlaying {
   constructor({ island, api, settings, forceDemo = false }) {

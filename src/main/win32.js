@@ -36,6 +36,12 @@ const keybd_event = user32.func('void __stdcall keybd_event(uint8 vk, uint8 scan
 const SetForegroundWindow = user32.func('bool __stdcall SetForegroundWindow(HANDLE hwnd)');
 const dwmapi = koffi.load('dwmapi.dll');
 const DwmGetWindowAttribute = dwmapi.func('int32 __stdcall DwmGetWindowAttribute(HANDLE hwnd, uint32 attr, _Out_ uint32 *value, uint32 size)');
+const POINT = koffi.struct('POINT', { x: 'int32', y: 'int32' });
+const WindowFromPoint = user32.func('HANDLE __stdcall WindowFromPoint(POINT pt)');
+const GetAncestor = user32.func('HANDLE __stdcall GetAncestor(HANDLE hwnd, uint32 flags)');
+const OpenProcess = kernel32.func('HANDLE __stdcall OpenProcess(uint32 access, bool inherit, uint32 pid)');
+const QueryFullProcessImageNameW = kernel32.func('bool __stdcall QueryFullProcessImageNameW(HANDLE process, uint32 flags, _Out_ uint8_t *name, _Inout_ uint32 *size)');
+const CloseHandle = kernel32.func('bool __stdcall CloseHandle(HANDLE handle)');
 
 const MOUSE_BUTTONS = [0x01, 0x02, 0x04]; // left, right, middle
 
@@ -155,6 +161,32 @@ function ignoresMouse(hwndBigInt) {
   return (GetWindowLongW(hwnd, -20) & WS_EX_TRANSPARENT) !== 0;
 }
 
+const GA_ROOT = 2;
+const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+
+// The top-level window that would take a click at this physical screen point.
+function windowAt(x, y) {
+  const hwnd = WindowFromPoint({ x: Math.round(x), y: Math.round(y) });
+  if (!hwnd) return null;
+  return koffi.address(GetAncestor(hwnd, GA_ROOT) || hwnd);
+}
+
+// Class and executable of a window, for the log: "who took my click".
+function describeWindow(address) {
+  const hwnd = koffi.as(address, 'HANDLE');
+  const pid = [0];
+  GetWindowThreadProcessId(hwnd, pid);
+  let exe = `pid ${pid[0]}`;
+  const proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid[0]);
+  if (proc) {
+    const buf = Buffer.alloc(1040);
+    const size = [520];
+    if (QueryFullProcessImageNameW(proc, 0, buf, size)) exe = buf.toString('utf16le', 0, size[0] * 2).split('\\').pop();
+    CloseHandle(proc);
+  }
+  return { cls: className(hwnd), exe };
+}
+
 const foregroundWindow = () => GetForegroundWindow();
 const focusWindow = (hwnd) => (hwnd ? SetForegroundWindow(hwnd) : false);
 
@@ -169,4 +201,6 @@ module.exports = {
   foregroundWindow,
   focusWindow,
   ignoresMouse,
+  windowAt,
+  describeWindow,
 };

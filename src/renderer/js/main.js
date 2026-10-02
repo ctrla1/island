@@ -91,8 +91,12 @@ async function start() {
   api.on('pin', (pinned) => island.setPinned(pinned));
   api.on('fullscreen', (active) => island.setSuspended(active));
   api.on('appBelow', (below) => island.setAppBelow(below));
-  api.on('pointer', ({ inside, press }) => {
+  // The main process also reports where the cursor is: a second source next to
+  // the mouse events forwarded into this click-through window, which Windows can
+  // silently stop delivering.
+  api.on('pointer', ({ inside, press, x, y }) => {
     if (!inside) island.pointer(-1e4, -1e4);
+    else if (typeof x === 'number') island.pointer(x, y);
     if (press) island.press();
   });
   api.on('settings', (next) => {

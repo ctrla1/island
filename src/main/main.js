@@ -16,6 +16,8 @@ const {
   foregroundWindow,
   focusWindow,
   ignoresMouse,
+  windowAt,
+  describeWindow,
 } = require('./win32');
 
 // ── Diagnostics ─────────────────────────────────────────────────────────────
@@ -110,6 +112,8 @@ let tray = null;
 let settings = DEFAULT_SETTINGS;
 let pinned = false;
 let pointerInside = false;
+let wantInteractive = false;
+let lastCover = '';
 let fullscreen = false;
 let appBelow = true;
 let mediaState = { type: 'media', active: false };
@@ -277,6 +281,40 @@ function updateAppBelow() {
   }
 }
 
+// While the cursor is over the open island, make sure a click would really land
+// on it: the window must not be click-through, and no other always-on-top window
+// (an invisible overlay of a game launcher, recorder, chat app…) may sit above it.
+// Hover is tracked by a global mouse hook, so the island opens even under such an
+// overlay — and then its buttons silently stop working. Repair it and log who it was.
+function guardClicks(press) {
+  if (!win || !wantInteractive || !pointerInside || fullscreen) return;
+  const own = win.getNativeWindowHandle().readBigUInt64LE(0);
+  try {
+    if (ignoresMouse(own)) {
+      diag('guard: open island was click-through, repaired');
+      win.setIgnoreMouseEvents(false, { forward: true });
+    }
+  } catch {}
+  let top = null;
+  try {
+    const p = screen.dipToScreenPoint(screen.getCursorScreenPoint());
+    top = windowAt(p.x, p.y);
+  } catch {
+    return;
+  }
+  if (top === null || top === own) {
+    lastCover = '';
+    return;
+  }
+  let who = { cls: '?', exe: '?' };
+  try { who = describeWindow(top); } catch {}
+  const key = `${who.cls} ${who.exe}`;
+  if (press || key !== lastCover) diag(press ? 'guard: a click went to' : 'guard: island covered by', key);
+  lastCover = key;
+  win.setAlwaysOnTop(true, 'screen-saver');
+  win.moveTop();
+}
+
 // Forwarded mouse events stop once the cursor leaves the window entirely,
 // so poll the cursor to tell the renderer about that edge. While the cursor is
 // inside, also watch the mouse buttons: clicks that pass through the pill to
@@ -284,6 +322,8 @@ function updateAppBelow() {
 function watchPointer() {
   let buttonDown = false;
   let tick = 0;
+  let lastX = null;
+  let lastY = null;
   setInterval(() => {
     if (!win) return;
     if (tick++ % 10 === 0) updateAppBelow();
@@ -295,9 +335,21 @@ function watchPointer() {
       // Fresh answer the moment the cursor arrives, before the renderer decides.
       if (inside) updateAppBelow();
       send('pointer', { inside });
+      lastX = lastY = null;
+    }
+    // Where the cursor is, in page coordinates — independent of forwarded mouse events.
+    if (inside && (p.x !== lastX || p.y !== lastY)) {
+      lastX = p.x;
+      lastY = p.y;
+      send('pointer', { inside, x: p.x - b.x, y: p.y - b.y });
     }
     const down = inside && mouseButtonDown();
-    if (down && !buttonDown) send('pointer', { inside, press: true });
+    if (down && !buttonDown) {
+      send('pointer', { inside, press: true });
+      guardClicks(true);
+    } else if (tick % 4 === 0) {
+      guardClicks(false);
+    }
     buttonDown = down;
   }, 25);
 }
@@ -456,6 +508,7 @@ function wireIpc() {
   // have drifted from it, put them back and note it.
   ipcMain.on('interactive', (_e, interactive, reassert) => {
     if (!win) return;
+    wantInteractive = !!interactive;
     const wantIgnore = !interactive;
     let actualIgnore = wantIgnore;
     try { actualIgnore = ignoresMouse(win.getNativeWindowHandle().readBigUInt64LE(0)); } catch {}
@@ -510,6 +563,7 @@ function wireSources() {
   });
   bridge.on('network', (msg) => system.setNetwork(msg));
   bridge.on('log', (line) => console.log('[bridge]', line));
+  bridge.on('hung', (ms) => diag('system bridge silent for', ms, 'ms: restarting'));
   bridge.on('down', (code) => {
     diag('system bridge exited:', code);
     send('media', { type: 'media', active: false, bridgeDown: true });

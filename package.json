@@ -1,7 +1,7 @@
 {
   "name": "island",
   "productName": "Island",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Dynamic Island for Windows — a premium desktop overlay with now playing, clipboard history and quick system status",
   "main": "src/main/main.js",
   "author": "ctrla1",

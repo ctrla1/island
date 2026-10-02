@@ -12,6 +12,23 @@ class SystemBridge extends EventEmitter {
     this.buffer = '';
     this.restarts = 0;
     this.stopped = false;
+    this.lastData = 0;
+    this.watchdog = null;
+  }
+
+  // The script reports in at least every few seconds. A WinRT call that never
+  // returns would freeze it silently — media buttons and volume would stop
+  // working — so a bridge that goes quiet is killed and started afresh.
+  watch() {
+    if (this.watchdog) return;
+    this.watchdog = setInterval(() => {
+      if (!this.proc || this.stopped) return;
+      const quiet = Date.now() - this.lastData;
+      if (quiet < 20000) return;
+      this.emit('hung', quiet);
+      this.restarts = 0;
+      try { this.proc.kill(); } catch {}
+    }, 5000);
   }
 
   start() {
@@ -21,6 +38,8 @@ class SystemBridge extends EventEmitter {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     this.proc = proc;
+    this.lastData = Date.now();
+    this.watch();
     proc.stdin.on('error', () => {});
     proc.stdout.setEncoding('utf8');
     proc.stdout.on('data', (chunk) => this.onData(chunk));
@@ -37,6 +56,7 @@ class SystemBridge extends EventEmitter {
   }
 
   onData(chunk) {
+    this.lastData = Date.now();
     this.buffer += chunk;
     let nl;
     while ((nl = this.buffer.indexOf('\n')) !== -1) {
@@ -63,6 +83,8 @@ class SystemBridge extends EventEmitter {
 
   stop() {
     this.stopped = true;
+    clearInterval(this.watchdog);
+    this.watchdog = null;
     if (this.proc) {
       try { this.proc.stdin.end(); } catch {}
       const p = this.proc;
