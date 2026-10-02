@@ -15,7 +15,27 @@ const {
   sendPaste,
   foregroundWindow,
   focusWindow,
+  ignoresMouse,
 } = require('./win32');
+
+// ── Diagnostics ─────────────────────────────────────────────────────────────
+// A small rolling log in %APPDATA%\Island\island.log, so a hard-to-reproduce
+// problem on someone's machine leaves a trail.
+const LOG_LIMIT = 256 * 1024;
+function diag(...parts) {
+  try {
+    const file = path.join(app.getPath('userData'), 'island.log');
+    const line = `${new Date().toISOString()} ${parts.join(' ')}\n`;
+    let size = 0;
+    try { size = fs.statSync(file).size; } catch {}
+    if (size > LOG_LIMIT) {
+      const tail = fs.readFileSync(file, 'utf8').slice(-LOG_LIMIT / 2);
+      fs.writeFileSync(file, tail.slice(tail.indexOf('\n') + 1));
+    }
+    fs.appendFileSync(file, line);
+  } catch {}
+}
+process.on('uncaughtException', (err) => diag('uncaught', err && err.stack ? err.stack.split('\n').slice(0, 3).join(' | ') : String(err)));
 
 // The window is a fixed transparent canvas; the island morphs inside it and
 // everything outside the island is click-through. Tall enough for the snippet editor.
@@ -174,6 +194,13 @@ function createWindow() {
   win.on('blur', () => {
     if (editing) send('editor:blur');
   });
+  win.webContents.on('unresponsive', () => diag('renderer unresponsive'));
+  win.webContents.on('responsive', () => diag('renderer responsive again'));
+  // If the interface process dies, bring it back instead of leaving a dead pill.
+  win.webContents.on('render-process-gone', (_e, details) => {
+    diag('renderer gone:', details.reason, details.exitCode);
+    setTimeout(() => win && !win.isDestroyed() && win.reload(), 500);
+  });
   win.on('closed', () => { win = null; });
 }
 
@@ -245,6 +272,7 @@ function updateAppBelow() {
   }
   if (below !== appBelow) {
     appBelow = below;
+    diag('app under pill:', below);
     send('appBelow', below);
   }
 }
@@ -288,6 +316,7 @@ function watchFullscreen() {
     }
     if (active === fullscreen) return;
     fullscreen = active;
+    diag('fullscreen app', active ? 'on top: hiding' : 'gone: showing');
     send('fullscreen', active);
     if (active) {
       win.setIgnoreMouseEvents(true, { forward: true });
@@ -387,6 +416,7 @@ async function pasteSnippet(id, via) {
 function setEditing(on) {
   if (!win || on === editing) return;
   editing = on;
+  diag('snippet editor', on ? 'open' : 'closed');
   if (on) {
     editingReturnTo = foregroundWindow();
     globalShortcut.unregisterAll();
@@ -421,9 +451,20 @@ function wireIpc() {
     volume: volumeState,
   }));
 
-  ipcMain.on('interactive', (_e, interactive) => {
-    if (win) win.setIgnoreMouseEvents(!interactive, { forward: true });
+  // The renderer decides whether the window takes clicks. It re-sends its
+  // wish while the cursor is over the island; if Windows' actual window flags
+  // have drifted from it, put them back and note it.
+  ipcMain.on('interactive', (_e, interactive, reassert) => {
+    if (!win) return;
+    const wantIgnore = !interactive;
+    let actualIgnore = wantIgnore;
+    try { actualIgnore = ignoresMouse(win.getNativeWindowHandle().readBigUInt64LE(0)); } catch {}
+    if (reassert && actualIgnore === wantIgnore) return;
+    if (reassert) diag('desync: window', actualIgnore ? 'ignored' : 'took', 'clicks; renderer wants interactive =', interactive);
+    else diag('interactive =', interactive);
+    win.setIgnoreMouseEvents(wantIgnore, { forward: true });
   });
+  ipcMain.on('diag', (_e, ...parts) => diag('renderer:', ...parts.map(String)));
 
   ipcMain.on('expanded', (_e, expanded) => {
     islandExpanded = expanded;
@@ -469,7 +510,10 @@ function wireSources() {
   });
   bridge.on('network', (msg) => system.setNetwork(msg));
   bridge.on('log', (line) => console.log('[bridge]', line));
-  bridge.on('down', () => send('media', { type: 'media', active: false, bridgeDown: true }));
+  bridge.on('down', (code) => {
+    diag('system bridge exited:', code);
+    send('media', { type: 'media', active: false, bridgeDown: true });
+  });
 
   clips.on('log', (line) => console.log(line));
   clips.on('change', (list) => send('clips', list));
@@ -480,6 +524,7 @@ function wireSources() {
 }
 
 app.whenReady().then(() => {
+  diag('start', app.getVersion(), app.isPackaged ? 'installed' : 'dev');
   const firstRun = !fs.existsSync(SETTINGS_FILE());
   settings = loadSettings();
   // A freshly installed utility should come back after a reboot; the tray toggle turns it off.

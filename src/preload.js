@@ -8,7 +8,8 @@ const CHANNELS = new Set([
 
 contextBridge.exposeInMainWorld('island', {
   init: () => ipcRenderer.invoke('init'),
-  setInteractive: (value) => ipcRenderer.send('interactive', !!value),
+  setInteractive: (value, reassert = false) => ipcRenderer.send('interactive', !!value, !!reassert),
+  diag: (...parts) => ipcRenderer.send('diag', ...parts.map(String)),
   setExpanded: (value) => ipcRenderer.send('expanded', !!value),
   unpin: () => ipcRenderer.send('unpin'),
   media: (cmd) => ipcRenderer.send('media:cmd', cmd),

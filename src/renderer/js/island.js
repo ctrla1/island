@@ -154,6 +154,7 @@ export class Island {
     }
     this.mode = mode;
     this.el.dataset.mode = mode;
+    this.api.diag?.('mode', prev, '->', mode);
     for (const [name, layer] of Object.entries(this.layers)) layer.classList.toggle('is-active', name === mode);
     if (mode === 'expanded') this.expandedH = this.layers.expanded.offsetHeight || this.expandedH;
     this.retarget(preset || this.presetFor(prev, mode));
@@ -265,7 +266,10 @@ export class Island {
     const r = this.el.getBoundingClientRect();
     const pad = 8;
     const over = x >= r.left - pad && x <= r.right + pad && y >= -1 && y <= r.bottom + pad;
-    if (over === this.over) return;
+    if (over === this.over) {
+      if (over) this.reassert();
+      return;
+    }
     this.over = over;
     this.syncPointerState();
     if (over) this.enter();
@@ -297,6 +301,16 @@ export class Island {
     const ghost = this.over && this.yields();
     this.el.classList.toggle('is-ghost', ghost);
     if (!ghost) this.el.classList.remove('is-arming');
+  }
+
+  // While the cursor is over the island, now and then re-send whether the
+  // window should take clicks; the main process repairs the window if its
+  // flags have drifted (otherwise an open island could stop taking clicks).
+  reassert() {
+    const now = performance.now();
+    if (now - (this.lastAssert || 0) < 700) return;
+    this.lastAssert = now;
+    this.api.setInteractive(this.interactive, true);
   }
 
   setPassThrough(enabled) {

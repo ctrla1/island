@@ -149,6 +149,12 @@ function sendPaste() {
   keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
 }
 
+// Whether Windows currently lets clicks fall through this window.
+function ignoresMouse(hwndBigInt) {
+  const hwnd = koffi.as(hwndBigInt, 'HANDLE');
+  return (GetWindowLongW(hwnd, -20) & WS_EX_TRANSPARENT) !== 0;
+}
+
 const foregroundWindow = () => GetForegroundWindow();
 const focusWindow = (hwnd) => (hwnd ? SetForegroundWindow(hwnd) : false);
 
@@ -162,4 +168,5 @@ module.exports = {
   sendPaste,
   foregroundWindow,
   focusWindow,
+  ignoresMouse,
 };
